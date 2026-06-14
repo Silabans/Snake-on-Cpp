@@ -123,15 +123,13 @@ int main() {
             float deltaTime = clock.restart().asSeconds();
             timeAccumulator += deltaTime;
 
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && currentDir != Direction::Down) currentDir = Direction::Up;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) && currentDir != Direction::Right) currentDir = Direction::Left;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) currentDir = Direction::Down;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) currentDir = Direction::Right;
-
-
 
             while (timeAccumulator >= tickRate) {
                 // Runs every 100 ms
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && currentDir != Direction::Down) currentDir = Direction::Up;
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) && currentDir != Direction::Right) currentDir = Direction::Left;
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) currentDir = Direction::Down;
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) currentDir = Direction::Right;
 
                 if (!(gameApple.has_value())) {
                     Apple newApple;
@@ -149,7 +147,6 @@ int main() {
                 }
 
                 if (newHead.y < 0 || newHead.y > 29 || newHead.x < 0 || newHead.x > 39) {
-                    // TODO: Game over screen and/or death animation
                     currentState = GameState::GameOver;
                 }
                 
@@ -183,7 +180,7 @@ int main() {
                 sf::FloatRect textBounds = menuText.getLocalBounds();
                 menuText.setPosition({
                     400.0f - (textBounds.size.x / 2.0f),
-                    300.0f - (textBounds.size.y / 2.0f)
+                    300.0f - (textBounds.size.y)
                 });
                 window.draw(menuText);
                 break;
@@ -198,7 +195,7 @@ int main() {
                 sf::FloatRect overBounds = gameOverText.getLocalBounds();
                 gameOverText.setPosition({
                     400.0f - (overBounds.size.x / 2.0f),
-                    300.0f - (overBounds.size.y / 2.0f)
+                    300.0f - (overBounds.size.y)
                 });
                 window.draw(gameOverText);
                 break;
