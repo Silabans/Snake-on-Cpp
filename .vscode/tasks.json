@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "Build & Run SFML Game",
+            "command": "g++",
+            "args": [
+                "-std=c++17",
+                "-DSFML_STATIC",
+                "main.cpp",
+                "-o", "snake_game.exe",
+                "-I", "C:/Users/USER/Documents/Coding Projects/Self-initiated/C++/SFML-3.1.0/include",
+                "-L", "C:/Users/USER/Documents/JC/Computing/lab-based_practice/SFML-3.1.0-sources/build/lib",
+                "-lsfml-graphics-s",
+                "-lsfml-window-s",
+                "-lsfml-system-s",
+                "-lharfbuzz",
+                "-lfreetype",
+                "-lgdi32",
+                "-lopengl32",
+                "-lwinmm"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
+        }
+    ]
+}
