@@ -79,6 +79,7 @@ int main() {
     // Back of deque = head; front of deque = tail
     std::deque<sf::Vector2i> snake; // stores the coordinates of each of the snake's part
     Direction currentDir;
+    Direction nextDir;
     std::optional<Apple> gameApple;
     bool self_collision;
     int score = 0;
@@ -87,6 +88,7 @@ int main() {
     auto resetGame = [&]() {
         snake = {{15, 15}, {16, 15}, {17, 15}}; // stores the coordinates of each of the snake's part
         currentDir = Direction::Right;
+        nextDir = Direction::Right;
         gameApple = std::nullopt;
         self_collision = false;
         score = 0;
@@ -123,13 +125,17 @@ int main() {
             float deltaTime = clock.restart().asSeconds();
             timeAccumulator += deltaTime;
 
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && currentDir != Direction::Down) nextDir = Direction::Up;
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) && currentDir != Direction::Right) nextDir = Direction::Left;
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) nextDir = Direction::Down;
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) nextDir = Direction::Right;
+
 
             while (timeAccumulator >= tickRate) {
                 // Runs every 100 ms
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && currentDir != Direction::Down) currentDir = Direction::Up;
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) && currentDir != Direction::Right) currentDir = Direction::Left;
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) currentDir = Direction::Down;
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) currentDir = Direction::Right;
+
+                currentDir = nextDir; // This acts as a buffer to prevent double input in one frame, which
+                                      // could lead to the game allowing moving left while moving right (suicide)
 
                 if (!(gameApple.has_value())) {
                     Apple newApple;
