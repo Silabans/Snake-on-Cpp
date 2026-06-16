@@ -5,6 +5,7 @@
 #include <optional>
 #include <algorithm>
 #include <random>
+#include <cmath>
 
 enum class GameState {
     MainMenu,
@@ -52,12 +53,14 @@ public:
 struct Enemy {
     std::deque<sf::Vector2i> body;
     Direction enemyDir;
+    bool collision;
+    int updateCounter;
 
     // grid movement
     int dx[4] = {1, -1, 0, 0};
     int dy[4] = {0, 0, -1, 1};
 
-    void spawn(sf::Vector2i playerHead) {
+    void spawn(const sf::Vector2i& playerHead) {
         sf::Vector2i enemyHead = {(playerHead.x + 10) % 35, (playerHead.y + 10) % 28};
         body = {enemyHead, {(enemyHead.x + 1), enemyHead.y}, {(enemyHead.x + 2), enemyHead.y}};
         enemyDir = Direction::Left;
@@ -81,7 +84,7 @@ struct Enemy {
         return target;
     }
 
-    std::optional<std::deque<sf::Vector2i>> calculatePath(sf::Vector2i target, 
+    std::optional<std::deque<Direction>> calculatePath(sf::Vector2i target, 
         const std::deque<sf::Vector2i> playerSnake, int height, int width) {
         // boolean 2d grid
         bool grid[30][40] = {false};
@@ -96,7 +99,7 @@ struct Enemy {
 
         // bfs logic
         sf::Vector2i head = body.back();
-        std::vector<sf::Vector2i> path;
+        std::deque<Direction> path;
         sf::Vector2i parent[30][40];
 
         bool visited[30][40];
@@ -139,9 +142,42 @@ struct Enemy {
         sf::Vector2i step = target;
 
         while (step != head) {
-            step = parent[step.y][step.x];
+            sf::Vector2i nextStep = parent[step.y][step.x];
+            
+            int nx = nextStep.x - step.x;
+            int ny = nextStep.y - step.y;
+
+            if (nx == 1) path.push_back(Direction::Left);
+            else if (nx == -1) path.push_back(Direction::Right);
+            else if (ny == 1) path.push_back(enemyDir = Direction::Up);
+            else path.push_back(Direction::Down);
         }
 
+        return path;
+    }
+
+    void update(const std::deque<sf::Vector2i>& playerSnake, const Direction& playerDir) {
+        sf::Vector2i head = body.back();
+        sf::Vector2i playerHead = playerSnake.back();
+
+        sf::Vector2i newHead = head;
+        
+        switch(enemyDir) {
+            case Direction::Up: newHead.y -= 1; break;
+            case Direction::Down: newHead.y += 1; break;
+            case Direction::Right: newHead.x += 1; break;
+            case Direction::Left: newHead.x -= 1; break;
+        }
+
+        // Death logic
+        collision = std::any_of(playerSnake.begin(), playerSnake.end(), [&](const sf::Vector2i& segment) {
+            segment == head;
+        });
+
+        if (newHead.x < 0 || newHead.x >= 40 || newHead.y < 0 || newHead.y >= 30) collision = true;
+        
+        // Head moves forward
+        body.push_back(newHead);
     }
 };
 
@@ -180,12 +216,12 @@ int main() {
     Direction nextDir;
     std::optional<Apple> gameApple;
     bool self_collision;
+    bool enemy_collision;
     int score = 0;
 
     // Initialise enemy
     bool spawnEnemy;
-    bool enemyExists;
-    sf::Vector2i enemyHead;
+    std::optional<Enemy> enemy;
 
 
     auto resetGame = [&]() {
@@ -195,11 +231,13 @@ int main() {
         nextDir = Direction::Right;
         gameApple = std::nullopt;
         self_collision = false;
+        enemy_collision = false;
         score = 0;
 
         // enemy reset
+
         spawnEnemy = false;
-        enemyExists = false;
+        enemy = std::nullopt;
     };
 
     GameState currentState = GameState::MainMenu;
@@ -238,7 +276,7 @@ int main() {
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) nextDir = Direction::Down;
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) nextDir = Direction::Right;
 
-            if (score != 0 && (score % 7) == 0 && !(enemyExists)) spawnEnemy = true;
+            if (score != 0 && (score % 7) == 0 && !(enemy.has_value())) spawnEnemy = true;
 
             while (timeAccumulator >= tickRate) {
                 // Runs every 100 ms
@@ -254,13 +292,47 @@ int main() {
 
                 sf::Vector2i newHead = snake.back();
 
-                if (enemyExists) enemyHead = enemy.back();
-
                 if (spawnEnemy) {
                     // TODO: initialise an enemy
+                    Enemy newEnemy;
+                    newEnemy.spawn(newHead);
+                    newEnemy.updateCounter = 3;
+                    enemy = newEnemy;
 
                     spawnEnemy = false;
-                    enemyExists = true;
+                }
+
+                // enemy movement logic
+                //TODO: initialize the pathfinding here
+                sf::Vector2i target;
+                std::optional<std::deque<Direction>> enemyPath;
+
+                if (enemy.has_value()) {
+                    sf::Vector2i enemyHead = enemy->body.back();
+                    int enemyPlayerDist = std::abs(newHead.x - enemyHead.x) + std::abs(newHead.y - enemyHead.y);
+                    int enemyAppleDist;
+                    if (gameApple.has_value()) {
+                        enemyAppleDist = std::abs(gameApple->getPosition().x - enemyHead.x) + std::abs(gameApple->getPosition().y - enemyHead.y);
+                    }
+
+                    if (gameApple.has_value() && (2 * enemyAppleDist < enemyPlayerDist)) target = gameApple->getPosition();
+                    else target = enemy->calculateTarget(newHead, currentDir);
+                
+                
+                    if (enemy->updateCounter == 3) {
+                        enemyPath = enemy->calculatePath(target, snake, 30, 40);
+                        enemy->updateCounter = 0;
+                    }
+
+                    if (enemyPath.has_value()) {
+                        enemy->enemyDir = enemyPath->back();
+                        enemy->update(snake, enemy->enemyDir);
+                    }
+
+                    if (enemy->collision) enemy = std::nullopt;
+
+                    if (gameApple.has_value() && enemyHead == gameApple->getPosition()) gameApple = std::nullopt;
+                    else enemy->body.pop_front();
                 }
 
                 switch(currentDir) {
@@ -278,7 +350,13 @@ int main() {
                     return segment == newHead;
                 });
 
-                if (self_collision) currentState = GameState::GameOver;
+                if (enemy.has_value()) {
+                    enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const Vector2i& enemySegment) {
+                        enemySegment == newHead;
+                    });
+                }
+
+                if (self_collision || enemy_collision) currentState = GameState::GameOver;
 
                 snake.push_back(newHead); // Move head forward
                 if (gameApple.has_value() && newHead == gameApple->getPosition()) {
@@ -287,22 +365,8 @@ int main() {
                 } else {
                     snake.pop_front(); // Trim the tail
                 }
-
-                // enemy movement logic
                 
-
-                switch(enemyDir) {
-                    case Direction::Up: enemyHead.y -= 1; break;
-                    case Direction::Down: enemyHead.y += 1; break;
-                    case Direction::Right: enemyHead.x += 1; break;
-                    case Direction::Left: enemyHead.x -= 1; break;
-                }
-
-                // enemy collision logic
-                if (enemyHead) {
-                    
-                }
-
+                if (enemy.has_value()) enemy->updateCounter += 1;
                 timeAccumulator -= tickRate; // remove the slice of time
             }
         }
@@ -341,16 +405,6 @@ int main() {
             }
 
             case GameState::Playing: {
-            // Draw Apple if present
-                if (gameApple.has_value()) {
-                    sf::RectangleShape appleBlock(sf::Vector2f(tileSize - 2.0f, tileSize - 2.0f));
-                    appleBlock.setFillColor(sf::Color::Red);
-                    appleBlock.setPosition({static_cast<float>(gameApple->getPosition().x * tileSize),
-                    static_cast<float>(gameApple->getPosition().y * tileSize)});
-                    
-                    window.draw(appleBlock);
-                }
-
                 // Create a visibile block for each of the snake's segment
                 for (const auto& segment : snake) {
                     // Determine the shape (square) and size (18 by 18)
@@ -364,6 +418,28 @@ int main() {
                     window.draw(block); // Draw the block on the window
                 }
                 break;
+
+                 // Draw Apple if present
+                if (gameApple.has_value()) {
+                    sf::RectangleShape appleBlock(sf::Vector2f(tileSize - 2.0f, tileSize - 2.0f));
+                    appleBlock.setFillColor(sf::Color::Red);
+                    appleBlock.setPosition({static_cast<float>(gameApple->getPosition().x * tileSize),
+                    static_cast<float>(gameApple->getPosition().y * tileSize)});
+                    
+                    window.draw(appleBlock);
+                }
+
+                // Draw enemy if present
+                if (enemy.has_value()) {
+                    for (const auto& segment : enemy->body) {
+                        sf::RectangleShape enemyBlock(sf::Vector2f(tileSize - 2.0f, tileSize - 2.0f));
+                        enemyBlock.setFillColor(sf::Color::Yellow);
+                        enemyBlock.setPosition({static_cast<float>(segment.x * tileSize), static_cast<float>(segment.y * tileSize)});
+
+                        window.draw(enemyBlock);
+                    }
+                }
+
             }
         }
 
