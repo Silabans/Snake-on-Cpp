@@ -178,7 +178,7 @@ struct Enemy {
 
         // Death logic
         collision = std::any_of(playerSnake.begin(), playerSnake.end(), [&](const sf::Vector2i& segment) {
-            segment == head;
+            return segment == head;
         });
 
         if (newHead.x < 0 || newHead.x >= 40 || newHead.y < 0 || newHead.y >= 30) collision = true;
