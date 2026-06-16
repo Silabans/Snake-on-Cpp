@@ -1,5 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <deque>
+#include <queue>
+#include <vector>
 #include <optional>
 #include <algorithm>
 #include <random>
@@ -47,6 +49,102 @@ public:
 
 };
 
+struct Enemy {
+    std::deque<sf::Vector2i> body;
+    Direction enemyDir;
+
+    // grid movement
+    int dx[4] = {1, -1, 0, 0};
+    int dy[4] = {0, 0, -1, 1};
+
+    void spawn(sf::Vector2i playerHead) {
+        sf::Vector2i enemyHead = {(playerHead.x + 10) % 35, (playerHead.y + 10) % 28};
+        body = {enemyHead, {(enemyHead.x + 1), enemyHead.y}, {(enemyHead.x + 2), enemyHead.y}};
+        enemyDir = Direction::Left;
+    }
+
+    // Calculate the target tile when the enemy tracks down the player.
+    // This is to allow the calculatePath to be used for both apple and player tracking
+    sf::Vector2i calculateTarget(sf::Vector2i playerHead, Direction playerDir) {
+        sf::Vector2i target = playerHead;
+
+        switch(playerDir) {
+            case Direction::Up: target.y -= 3;
+            case Direction::Down: target.y += 3;
+            case Direction::Right: target.x += 3;
+            case Direction::Left: target.x -= 3;
+        }
+
+        target.x = std::clamp(target.x, 0, 39);
+        target.y = std::clamp(target.y, 0, 29);
+
+        return target;
+    }
+
+    std::optional<std::deque<sf::Vector2i>> calculatePath(sf::Vector2i target, 
+        const std::deque<sf::Vector2i> playerSnake, int height, int width) {
+        // boolean 2d grid
+        bool grid[30][40] = {false};
+
+        for (const sf::Vector2i& segment : playerSnake) {
+            grid[segment.y][segment.x] = true;
+        }
+
+        for (const sf::Vector2i& segment : body) {
+            grid[segment.y][segment.x] = true;
+        }
+
+        // bfs logic
+        sf::Vector2i head = body.back();
+        std::vector<sf::Vector2i> path;
+        sf::Vector2i parent[30][40];
+
+        bool visited[30][40];
+
+        std::queue<sf::Vector2i> q;
+        q.push(head);
+
+        visited[head.y][head.x] = true;
+        bool foundPath = false;
+
+        while (!(q.empty())) {
+            sf::Vector2i current = q.front();
+            q.pop();
+
+            if (current == target) foundPath = true; break;
+
+            std::vector<sf::Vector2i> neighbours;
+
+            for (int i = 0; i < 4; ++i) {
+                int nx = head.x + dx[i];
+                int ny = head.y + dy[i];
+
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+                    continue;
+                }
+
+                neighbours.push_back({nx, ny});
+                visited[ny][nx] = true;
+                parent[ny][nx] = current;
+            }
+
+            for (sf::Vector2i neighbour : neighbours) {
+                q.push(neighbour);
+            }
+        }
+
+        if (!foundPath) return std::nullopt;
+
+        // traceback logic
+        sf::Vector2i step = target;
+
+        while (step != head) {
+            step = parent[step.y][step.x];
+        }
+
+    }
+};
+
 int main() {
     sf::RenderWindow window(sf::VideoMode({800, 600}), "Snake Setup Test");
 
@@ -84,14 +182,24 @@ int main() {
     bool self_collision;
     int score = 0;
 
+    // Initialise enemy
+    bool spawnEnemy;
+    bool enemyExists;
+    sf::Vector2i enemyHead;
+
 
     auto resetGame = [&]() {
+        // player reset
         snake = {{15, 15}, {16, 15}, {17, 15}}; // stores the coordinates of each of the snake's part
         currentDir = Direction::Right;
         nextDir = Direction::Right;
         gameApple = std::nullopt;
         self_collision = false;
         score = 0;
+
+        // enemy reset
+        spawnEnemy = false;
+        enemyExists = false;
     };
 
     GameState currentState = GameState::MainMenu;
@@ -130,6 +238,7 @@ int main() {
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) nextDir = Direction::Down;
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) nextDir = Direction::Right;
 
+            if (score != 0 && (score % 7) == 0 && !(enemyExists)) spawnEnemy = true;
 
             while (timeAccumulator >= tickRate) {
                 // Runs every 100 ms
@@ -144,6 +253,15 @@ int main() {
                 }
 
                 sf::Vector2i newHead = snake.back();
+
+                if (enemyExists) enemyHead = enemy.back();
+
+                if (spawnEnemy) {
+                    // TODO: initialise an enemy
+
+                    spawnEnemy = false;
+                    enemyExists = true;
+                }
 
                 switch(currentDir) {
                     case Direction::Up: newHead.y -= 1; break;
@@ -168,6 +286,21 @@ int main() {
                     score += 1;
                 } else {
                     snake.pop_front(); // Trim the tail
+                }
+
+                // enemy movement logic
+                
+
+                switch(enemyDir) {
+                    case Direction::Up: enemyHead.y -= 1; break;
+                    case Direction::Down: enemyHead.y += 1; break;
+                    case Direction::Right: enemyHead.x += 1; break;
+                    case Direction::Left: enemyHead.x -= 1; break;
+                }
+
+                // enemy collision logic
+                if (enemyHead) {
+                    
                 }
 
                 timeAccumulator -= tickRate; // remove the slice of time
