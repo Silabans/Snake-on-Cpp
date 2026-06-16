@@ -114,21 +114,26 @@ struct Enemy {
             sf::Vector2i current = q.front();
             q.pop();
 
-            if (current == target) foundPath = true; break;
+            if (current == target) {
+                foundPath = true; 
+                break;
+            }
 
             std::vector<sf::Vector2i> neighbours;
 
             for (int i = 0; i < 4; ++i) {
-                int nx = head.x + dx[i];
-                int ny = head.y + dy[i];
+                int nx = current.x + dx[i];
+                int ny = current.y + dy[i];
 
                 if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
                     continue;
                 }
 
-                neighbours.push_back({nx, ny});
-                visited[ny][nx] = true;
-                parent[ny][nx] = current;
+                if (!visited[ny][nx] && !grid[ny][nx]) {
+                    neighbours.push_back({nx, ny});
+                    visited[ny][nx] = true;
+                    parent[ny][nx] = current;
+                }
             }
 
             for (sf::Vector2i neighbour : neighbours) {
@@ -351,7 +356,7 @@ int main() {
                 });
 
                 if (enemy.has_value()) {
-                    enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const Vector2i& enemySegment) {
+                    enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const sf::Vector2i& enemySegment) {
                         enemySegment == newHead;
                     });
                 }
@@ -417,7 +422,6 @@ int main() {
                     block.setPosition({static_cast<float>(segment.x * tileSize), static_cast<float>(segment.y * tileSize)});
                     window.draw(block); // Draw the block on the window
                 }
-                break;
 
                  // Draw Apple if present
                 if (gameApple.has_value()) {
@@ -440,6 +444,7 @@ int main() {
                     }
                 }
 
+                break;
             }
         }
 
