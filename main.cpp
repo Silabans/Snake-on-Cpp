@@ -72,10 +72,10 @@ struct Enemy {
         sf::Vector2i target = playerHead;
 
         switch(playerDir) {
-            case Direction::Up: target.y -= 3;
-            case Direction::Down: target.y += 3;
-            case Direction::Right: target.x += 3;
-            case Direction::Left: target.x -= 3;
+            case Direction::Up: target.y -= 3; break;
+            case Direction::Down: target.y += 3; break;
+            case Direction::Right: target.x += 3; break;
+            case Direction::Left: target.x -= 3; break;
         }
 
         target.x = std::clamp(target.x, 0, 39);
@@ -154,8 +154,10 @@ struct Enemy {
 
             if (nx == 1) path.push_back(Direction::Left);
             else if (nx == -1) path.push_back(Direction::Right);
-            else if (ny == 1) path.push_back(enemyDir = Direction::Up);
+            else if (ny == 1) path.push_back(Direction::Up);
             else path.push_back(Direction::Down);
+
+            step = nextStep;
         }
 
         return path;
