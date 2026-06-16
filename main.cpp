@@ -359,7 +359,7 @@ int main() {
 
                 if (enemy.has_value()) {
                     enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const sf::Vector2i& enemySegment) {
-                        enemySegment == newHead;
+                        return enemySegment == newHead;
                     });
                 }
 
