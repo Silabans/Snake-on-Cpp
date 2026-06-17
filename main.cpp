@@ -53,6 +53,7 @@ public:
 struct Enemy {
     std::deque<sf::Vector2i> body;
     Direction enemyDir;
+    std::deque<Direction> enemyPath;
     bool collision;
     int updateCounter;
 
@@ -102,7 +103,7 @@ struct Enemy {
         std::deque<Direction> path;
         sf::Vector2i parent[30][40];
 
-        bool visited[30][40];
+        bool visited[30][40] = {false};
 
         std::queue<sf::Vector2i> q;
         q.push(head);
@@ -152,10 +153,10 @@ struct Enemy {
             int nx = nextStep.x - step.x;
             int ny = nextStep.y - step.y;
 
-            if (nx == 1) path.push_back(Direction::Left);
-            else if (nx == -1) path.push_back(Direction::Right);
-            else if (ny == 1) path.push_back(Direction::Up);
-            else path.push_back(Direction::Down);
+            if (nx == 1) path.push_front(Direction::Left);
+            else if (nx == -1) path.push_front(Direction::Right);
+            else if (ny == 1) path.push_front(Direction::Up);
+            else path.push_front(Direction::Down);
 
             step = nextStep;
         }
@@ -242,7 +243,6 @@ int main() {
         score = 0;
 
         // enemy reset
-
         spawnEnemy = false;
         enemy = std::nullopt;
     };
@@ -283,7 +283,6 @@ int main() {
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && currentDir != Direction::Up) nextDir = Direction::Down;
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) && currentDir != Direction::Left) nextDir = Direction::Right;
 
-            if (score != 0 && (score % 7) == 0 && !(enemy.has_value())) spawnEnemy = true;
 
             while (timeAccumulator >= tickRate) {
                 // Runs every 100 ms
@@ -299,6 +298,7 @@ int main() {
 
                 sf::Vector2i newHead = snake.back();
 
+                if (score != 0 && (score % 3) == 0 && !(enemy.has_value())) spawnEnemy = true;
                 if (spawnEnemy) {
                     // TODO: initialise an enemy
                     Enemy newEnemy;
@@ -312,12 +312,11 @@ int main() {
                 // enemy movement logic
                 //TODO: initialize the pathfinding here
                 sf::Vector2i target;
-                std::optional<std::deque<Direction>> enemyPath;
 
                 if (enemy.has_value()) {
                     sf::Vector2i enemyHead = enemy->body.back();
                     int enemyPlayerDist = std::abs(newHead.x - enemyHead.x) + std::abs(newHead.y - enemyHead.y);
-                    int enemyAppleDist;
+                    int enemyAppleDist = 9999; // safe default value
                     if (gameApple.has_value()) {
                         enemyAppleDist = std::abs(gameApple->getPosition().x - enemyHead.x) + std::abs(gameApple->getPosition().y - enemyHead.y);
                     }
@@ -326,20 +325,31 @@ int main() {
                     else target = enemy->calculateTarget(newHead, currentDir);
                 
                 
-                    if (enemy->updateCounter == 3) {
-                        enemyPath = enemy->calculatePath(target, snake, 30, 40);
+                    if (enemy->updateCounter >= 3) {
+                        auto possiblePath = enemy->calculatePath(target, snake, 30, 40);
+                        if (possiblePath.has_value() && !possiblePath->empty()) {
+                            enemy->enemyPath = *possiblePath;
+                        }
                         enemy->updateCounter = 0;
                     }
 
-                    if (enemyPath.has_value()) {
-                        enemy->enemyDir = enemyPath->back();
-                        enemy->update(snake, enemy->enemyDir);
+                    if (!enemy->enemyPath.empty()) {
+                        enemy->enemyDir = enemy->enemyPath.front();
+                        enemy->enemyPath.pop_front();
                     }
 
-                    if (enemy->collision) enemy = std::nullopt;
+                    enemy->update(snake, enemy->enemyDir);
 
-                    if (gameApple.has_value() && enemyHead == gameApple->getPosition()) gameApple = std::nullopt;
-                    else enemy->body.pop_front();
+                    if (enemy->collision) {
+                        enemy = std::nullopt; 
+                    } else {
+                        if (!enemy->body.empty() && gameApple.has_value() && enemy->body.back() == gameApple->getPosition()) {
+                            Apple newApple;
+                            newApple.spawn(snake);
+                            gameApple = newApple;
+                        }
+                        else if (!enemy->body.empty()) enemy->body.pop_front();
+                    }
                 }
 
                 switch(currentDir) {
@@ -356,18 +366,22 @@ int main() {
                 self_collision = std::any_of(snake.begin(), snake.end(), [&](const sf::Vector2i& segment) {
                     return segment == newHead;
                 });
+                if (self_collision) currentState = GameState::GameOver;
 
                 if (enemy.has_value()) {
                     enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const sf::Vector2i& enemySegment) {
                         return enemySegment == newHead;
                     });
+
+                    if (enemy_collision) currentState = GameState::GameOver;
                 }
 
-                if (self_collision || enemy_collision) currentState = GameState::GameOver;
 
                 snake.push_back(newHead); // Move head forward
                 if (gameApple.has_value() && newHead == gameApple->getPosition()) {
-                    gameApple = std::nullopt; // reset and empty the container
+                    Apple newApple;
+                    newApple.spawn(snake);
+                    gameApple = newApple;
                     score += 1;
                 } else {
                     snake.pop_front(); // Trim the tail
