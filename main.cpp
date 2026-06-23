@@ -179,7 +179,7 @@ struct Enemy {
 
         // Death logic
         collision = std::any_of(playerSnake.begin(), playerSnake.end(), [&](const sf::Vector2i& segment) {
-            return segment == head;
+            return segment == newHead;
         });
 
         if (newHead.x < 0 || newHead.x >= 40 || newHead.y < 0 || newHead.y >= 30) collision = true;
@@ -228,13 +228,14 @@ int main() {
     int score = 0;
 
     // Initialise enemy
+    bool enemyOn = false; 
     bool spawnEnemy;
     std::optional<Enemy> enemy;
-
+    
 
     auto resetGame = [&]() {
         // player reset
-        snake = {{15, 15}, {16, 15}, {17, 15}}; // stores the coordinates of each of the snake's part
+        snake = {{10, 15}, {11, 15}, {12, 15}}; // stores the coordinates of each of the snake's part
         currentDir = Direction::Right;
         nextDir = Direction::Right;
         gameApple = std::nullopt;
@@ -261,8 +262,14 @@ int main() {
         }
 
         if (currentState == GameState::MainMenu) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Enter)) {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Y)) {
                 resetGame();
+                enemyOn = true;
+                currentState = GameState::Playing;
+            }
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::N)) {
+                resetGame();
+                enemyOn = false;
                 currentState = GameState::Playing;
             }
         }
@@ -298,9 +305,10 @@ int main() {
 
                 sf::Vector2i newHead = snake.back();
 
-                if (score != 0 && (score % 3) == 0 && !(enemy.has_value())) spawnEnemy = true;
+                if (enemyOn && score != 0 && (score % 3) == 0 && !(enemy.has_value())) spawnEnemy = true;
+                else spawnEnemy = false;
                 if (spawnEnemy) {
-                    // TODO: initialise an enemy
+                    // initialise an enemy
                     Enemy newEnemy;
                     newEnemy.spawn(newHead);
                     newEnemy.updateCounter = 3;
@@ -313,7 +321,7 @@ int main() {
                 //TODO: initialize the pathfinding here
                 sf::Vector2i target;
 
-                if (enemy.has_value()) {
+                if (enemyOn && enemy.has_value()) {
                     sf::Vector2i enemyHead = enemy->body.back();
                     int enemyPlayerDist = std::abs(newHead.x - enemyHead.x) + std::abs(newHead.y - enemyHead.y);
                     int enemyAppleDist = 9999; // safe default value
@@ -325,7 +333,7 @@ int main() {
                     else target = enemy->calculateTarget(newHead, currentDir);
                 
                 
-                    if (enemy->updateCounter >= 3) {
+                    if (enemy->updateCounter >= 5) {
                         auto possiblePath = enemy->calculatePath(target, snake, 30, 40);
                         if (possiblePath.has_value() && !possiblePath->empty()) {
                             enemy->enemyPath = *possiblePath;
@@ -368,12 +376,15 @@ int main() {
                 });
                 if (self_collision) currentState = GameState::GameOver;
 
-                if (enemy.has_value()) {
+                if (enemyOn && enemy.has_value()) {
                     enemy_collision = std::any_of(enemy->body.begin(), enemy->body.end(), [&](const sf::Vector2i& enemySegment) {
                         return enemySegment == newHead;
                     });
 
                     if (enemy_collision) currentState = GameState::GameOver;
+                } else {
+                    // Default to false if enemy is not present
+                    enemy_collision = false;
                 }
 
 
@@ -387,7 +398,7 @@ int main() {
                     snake.pop_front(); // Trim the tail
                 }
                 
-                if (enemy.has_value()) enemy->updateCounter += 1;
+                if (enemyOn && enemy.has_value()) enemy->updateCounter += 1;
                 timeAccumulator -= tickRate; // remove the slice of time
             }
         }
@@ -397,7 +408,7 @@ int main() {
 
         switch(currentState) {
             case GameState::MainMenu: {
-                sf::Text menuText(font, "SNAKE\n\nPRESS ENTER TO PLAY", 35);
+                sf::Text menuText(font, "SNAKE\n\nPRESS Y/N TO PLAY WITH/WITHOUT BOT", 35);
                 menuText.setFillColor(sf::Color::White);
 
                 // Calculation to center the text on the screen
